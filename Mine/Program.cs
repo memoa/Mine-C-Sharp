@@ -1,6 +1,16 @@
 ﻿/*
   Mine
-  Program je uradjen prema igrici minesweeper
+
+  Description:
+    This program is my remake of game minesweeper written as console application.
+    User enters coordinates of field to open it. If field does not contain mine,
+    a number of mines surrounding a field will be shown. If there are no mines around,
+    all surrounded fields will be open. If user open field where mine is set, game is 
+    over and user did not solve game. If user open all fields which have no
+    mines inside, game is over and user successfully solved the game.
+
+  Author: Dejan Cvijetinovic
+  Date: 11.04.2019 (modified)
 */
 
 using System;
@@ -11,375 +21,368 @@ using System.Text;
 namespace Mine {
   class Program {
 
-    // Konstante koje koristi klasa MinskoPolje
+    // Constants used in class MineBoard
     const int
-      MAX_REDOVA = 20,
-      MAX_KOLONA = 35;
+      MAX_ROWS = 20,
+      MAX_COLUMNS = 35;
 
-    // Status igre objekta klase MinskoPolje
-    enum StatusIgre {
-      nijeReseno = 0,
-      pobeda = 1,
-      poraz = 2
+    // Status game of instance of MineBoard
+    enum StatusGame {
+      NotSolved = 0,
+      Win = 1,
+      Lose = 2
     }
 
-    // Povratne vrednosti metode MinskoPolje.OtvorenoPolje()
-    enum StatusOtvorenoPolje {
-      greskaPogresanUnos = -3,
-      greskaResenaPartija = -2,
-      greskaVecOtvoreno = -1,
-      uRedu = 0
+    // Return values of method MineBoard.OtvorenoPolje()
+    enum StatusOpenField {
+      ErrorWrongEntry = -3,
+      ErrorGameSolved = -2,
+      ErrorFieldOpen = -1,
+      Ok = 0
     }
 
-    // Povratne vrednosti metode MinskoPolje.PrikaziPolje()
-    enum Polje {
-      greska = -1,
-      /* 0..8 = otvoreno polje */
-      mina = 9,
-      nijeOtvoreno = 10
+    // Return values of method MineBoard.ShowField()
+    enum Field {
+      Error = -1,
+      // 0..8 = open field
+      Mine = 9,
+      NotOpen = 10
     };
 
-    class MinskoPolje {
+    class MineBoard {
 
-      // Svi clanovi klase su privatni
-      int brojRedova, brojKolona, brojMina;
-      int brojOtvorenihPolja;
-      StatusIgre status;
-      int[,] matricaMina;
-      bool[,] otvorenoPolje;
+      // All class members are private
+      int numRows, numColumns, numMines;
+      int numOpenedFields;
+      StatusGame status;
+      int[,] matrixMines;
+      bool[,] openedField;
 
-      // Getteri za pojedine clanove klase
-      public int BrojRedova { get { return brojRedova; } }
-      public int BrojKolona { get { return brojKolona; } }
-      public StatusIgre Status { get { return status; } }
+      // Getters for some of class members
+      public int NumRows { get { return numRows; } }
+      public int NumColumns { get { return numColumns; } }
+      public StatusGame Status { get { return status; } }
 
-      // Konstruktor
-      public MinskoPolje(int iBrojRedova = 10, int iBrojKolona = 10, int iBrojMina = 8) {
+      // Constructor
+      public MineBoard(int iNumRows = 10, int iNumColumns = 10, int iNumMines = 8) {
         if (
-
-          // Zastita od pogresnog ulaza, default vrednosti
-          iBrojRedova < 1 || iBrojRedova > MAX_REDOVA ||
-          iBrojKolona < 1 || iBrojKolona > MAX_KOLONA ||
-          iBrojMina < 0 || iBrojMina > iBrojRedova * iBrojKolona) {
-          brojRedova = 10;
-          brojKolona = 10;
-          brojMina = 8;
+          // Wrong entry protection, default values
+          iNumRows < 1 || iNumRows > MAX_ROWS ||
+          iNumColumns < 1 || iNumColumns > MAX_COLUMNS ||
+          iNumMines < 0 || iNumMines > iNumRows * iNumColumns) {
+          numRows = 10;
+          numColumns = 10;
+          numMines = 8;
         }
         else {
 
-          // Ako su ulazne vredvosti u redu, proslediti ih clanovima objekta
-          brojRedova = iBrojRedova;
-          brojKolona = iBrojKolona;
-          brojMina = iBrojMina;
+          // If all values are correct, add those to class members
+          numRows = iNumRows;
+          numColumns = iNumColumns;
+          numMines = iNumMines;
         }
 
         /* Debug
-          Console.WriteLine("Broj redova: "+brojRedova);
-          Console.WriteLine("Broj kolona: "+brojKolona);
-          Console.WriteLine("Broj mina: "+brojMina);
+          Console.WriteLine("Number of rows: " + numRows);
+          Console.WriteLine("Number of columns: " + numColumns);
+          Console.WriteLine("Number of mines: " + numMines);
         */
 
-        // Inicijalizacija preostalih clanova objekta
-        brojOtvorenihPolja = 0;
-        status = StatusIgre.nijeReseno;
-        matricaMina = new int[brojRedova, brojKolona];
-        otvorenoPolje = new bool[brojRedova, brojKolona];
+        // Initialization of rest of class members
+        numOpenedFields = 0;
+        status = StatusGame.NotSolved;
+        matrixMines = new int[numRows, numColumns];
+        openedField = new bool[numRows, numColumns];
 
-        // Generisanje slucajnih brojeva, postavljanje mina
+        // Generate random numbers, set mines
         Random random = new Random();
-        for (int i = 0; i < brojMina; ++i) {
-          int mina = random.Next(0, brojRedova * brojKolona);
+        for (int i = 0; i < numMines; ++i) {
+          int mina = random.Next(0, numRows * numColumns);
 
           /* Debug
-            Console.WriteLine("Random: "+mina);
-            Console.WriteLine("red: "+mina/brojKolona);
-            Console.WriteLine("kol: "+mina%brojKolona);
+            Console.WriteLine("Random: " + mina);
+            Console.WriteLine("row: " + mina / numColumns);
+            Console.WriteLine("column: " + mina % numColumns);
           */
 
-          // U slucaju da se ponovi ista mina, prebaciti je na sledece prazno mesto
-          // Ovim nacinom je skraceno vreme postavljanja mina
-          while (matricaMina[mina / brojKolona, mina % brojKolona] == 9) {
-            mina++;
-            if (mina == brojRedova * brojKolona)
+          // In case of mine repeated on place where mine already exist, set mine on next free field
+          // With this, time to set all mines is shorten
+          while (matrixMines[mina / numColumns, mina % numColumns] == 9) {
+            ++mina;
+            if (mina == numRows * numColumns)
               mina = 0;
           }
-          matricaMina[mina / brojKolona, mina % brojKolona] = 9;
+          matrixMines[mina / numColumns, mina % numColumns] = 9;
         }
       }
 
-      // Metoda za pristup poljima objekta u svrhu prikaza na ekran
-      public Polje PrikaziPolje(int red, int kolona) {
-        // Zastita od pogresnog ulaza podataka
-        if (red < 0 || red >= brojRedova || kolona < 0 || kolona >= brojKolona)
-          return Polje.greska;
-        // Prikazi izlaznu vrednost za zadato polje
-        else if (otvorenoPolje[red, kolona])
-          return (Polje)matricaMina[red, kolona];
+      // Method for field access in purpose of show it on screen
+      public Field ShowField(int row, int column) {
+        // Wrong entry protection
+        if (row < 0 || row >= numRows || column < 0 || column >= numColumns)
+          return Field.Error;
+        // Show value for requested field
+        else if (openedField[row, column])
+          return (Field)matrixMines[row, column];
         else
-          return Polje.nijeOtvoreno;
+          return Field.NotOpen;
       }
 
-      // Otvaranje polja, prebrojavanje mina oko zadatog polja
-      // i otvaranje polja oko zadatog polja ako nema mina oko zadatog polja
-      public StatusOtvorenoPolje OtvoriPolje(int red, int kolona) {
+      // Open field, count mines around requested field and open all fields
+      // surrounding requested field if there are no mines around
+      public StatusOpenField OpenField(int row, int column) {
 
-        // Zastita od pogresnog ulaza podataka
-        if (red < 0 || red >= brojRedova || kolona < 0 || kolona >= brojKolona)
-          return StatusOtvorenoPolje.greskaPogresanUnos;
+        // Wrong entry protection
+        if (row < 0 || row >= numRows || column < 0 || column >= numColumns)
+          return StatusOpenField.ErrorWrongEntry;
 
-        // Zastita od otvaranja vec otvorenih polja i otvaranja polja ako je igra zavrsena
-        // Izlazni uslov u slucaju rekurzivnih poziva
-        if (status == StatusIgre.nijeReseno && !otvorenoPolje[red, kolona]) {
-          int nadjenoMina = 0;
-          otvorenoPolje[red, kolona] = true;
+        // Open already opened field protection and open field when game over protection
+        // Exit condition for recursive calls
+        if (status == StatusGame.NotSolved && !openedField[row, column]) {
+          int foundMines = 0;
+          openedField[row, column] = true;
 
-          // Otvorena mina, otvoriti ostale mine i zavrsiti
-          if (matricaMina[red, kolona] == 9) {
-            for (int i = 0; i < brojRedova; i++)
-              for (int j = 0; j < brojKolona; j++)
-                if (matricaMina[i, j] == 9)
-                  otvorenoPolje[i, j] = true;
-            status = StatusIgre.poraz;
-            return StatusOtvorenoPolje.uRedu;
+          // Mine opened, Show rest of mines and finish the game
+          if (matrixMines[row, column] == 9) {
+            for (int i = 0; i < numRows; ++i)
+              for (int j = 0; j < numColumns; ++j)
+                if (matrixMines[i, j] == 9)
+                  openedField[i, j] = true;
+            status = StatusGame.Lose;
+            return StatusOpenField.Ok;
           }
 
-          // Brojanje mina oko otvorenog polja
+          // Counting mines around the field
 
-          // Gore levo
-          if (red - 1 >= 0 && kolona - 1 >= 0)
-            if (matricaMina[red - 1, kolona - 1] == 9)
-              nadjenoMina++;
+          // Up left
+          if (row - 1 >= 0 && column - 1 >= 0)
+            if (matrixMines[row - 1, column - 1] == 9)
+              ++foundMines;
 
-          // Gore
-          if (red - 1 >= 0)
-            if (matricaMina[red - 1, kolona] == 9)
-              nadjenoMina++;
+          // Up
+          if (row - 1 >= 0)
+            if (matrixMines[row - 1, column] == 9)
+              ++foundMines;
 
-          // Gore desno
-          if (red - 1 >= 0 && kolona + 1 < brojKolona)
-            if (matricaMina[red - 1, kolona + 1] == 9)
-              nadjenoMina++;
+          // Up right
+          if (row - 1 >= 0 && column + 1 < numColumns)
+            if (matrixMines[row - 1, column + 1] == 9)
+              ++foundMines;
 
-          // Desno
-          if (kolona + 1 < brojKolona)
-            if (matricaMina[red, kolona + 1] == 9)
-              nadjenoMina++;
+          // Right
+          if (column + 1 < numColumns)
+            if (matrixMines[row, column + 1] == 9)
+              ++foundMines;
 
-          // Dole desno
-          if (red + 1 < brojRedova && kolona + 1 < brojKolona)
-            if (matricaMina[red + 1, kolona + 1] == 9)
-              nadjenoMina++;
+          // Down right
+          if (row + 1 < numRows && column + 1 < numColumns)
+            if (matrixMines[row + 1, column + 1] == 9)
+              ++foundMines;
 
-          // Dole
-          if (red + 1 < brojRedova)
-            if (matricaMina[red + 1, kolona] == 9)
-              nadjenoMina++;
+          // Down
+          if (row + 1 < numRows)
+            if (matrixMines[row + 1, column] == 9)
+              ++foundMines;
 
-          // Dole levo
-          if (red + 1 < brojRedova && kolona - 1 >= 0)
-            if (matricaMina[red + 1, kolona - 1] == 9)
-              nadjenoMina++;
+          // Down left
+          if (row + 1 < numRows && column - 1 >= 0)
+            if (matrixMines[row + 1, column - 1] == 9)
+              ++foundMines;
 
-          // Levo
-          if (kolona - 1 >= 0)
-            if (matricaMina[red, kolona - 1] == 9)
-              nadjenoMina++;
+          // Left
+          if (column - 1 >= 0)
+            if (matrixMines[row, column - 1] == 9)
+              ++foundMines;
 
-          // Mine su prebrojane, upis broja u matricu za prikaz
-          matricaMina[red, kolona] = nadjenoMina;
-          brojOtvorenihPolja++;
+          // Mines counted, write mines count in field matrix
+          matrixMines[row, column] = foundMines;
+          ++numOpenedFields;
 
-          // Ako su otvorena sva polja, kraj
-          if (brojOtvorenihPolja == brojRedova * brojKolona - brojMina) {
-            for (int i = 0; i < brojRedova; i++)
-              for (int j = 0; j < brojKolona; j++)
-                if (!otvorenoPolje[i, j])
-                  otvorenoPolje[i, j] = true;
-            status = StatusIgre.pobeda;
-            return StatusOtvorenoPolje.uRedu;
+          // If all fields are opened, game over
+          if (numOpenedFields == numRows * numColumns - numMines) {
+            for (int i = 0; i < numRows; ++i)
+              for (int j = 0; j < numColumns; ++j)
+                if (!openedField[i, j])
+                  openedField[i, j] = true;
+            status = StatusGame.Win;
+            return StatusOpenField.Ok;
           }
 
           /* debug
-            Console.WriteLine("Otvoreno polje: [{0}, {1}]", red, kolona);
-            Console.WriteLine("brojOtvorenihPolja: "+brojOtvorenihPolja);
+            Console.WriteLine("Open field: [{0}, {1}]", row, column);
+            Console.WriteLine("Number of open fields: " + numOpenedFields);
           */
 
-          // Nema mina okolo, otvoriti sva polja okolo (rekurzivni pozivi)
-          if (nadjenoMina == 0) {
+          // No mines around, open all surrounding fields (recursive calls)
+          if (foundMines == 0) {
 
-            // Gore levo
-            if (red - 1 >= 0 && kolona - 1 >= 0)
-              OtvoriPolje(red - 1, kolona - 1);
+            // Up left
+            if (row - 1 >= 0 && column - 1 >= 0)
+              OpenField(row - 1, column - 1);
 
-            // Gore
-            if (red - 1 >= 0)
-              OtvoriPolje(red - 1, kolona);
+            // Up
+            if (row - 1 >= 0)
+              OpenField(row - 1, column);
 
-            // Gore desno
-            if (red - 1 >= 0 && kolona + 1 < brojKolona)
-              OtvoriPolje(red - 1, kolona + 1);
+            // Up right
+            if (row - 1 >= 0 && column + 1 < numColumns)
+              OpenField(row - 1, column + 1);
 
-            // Desno
-            if (kolona + 1 < brojKolona)
-              OtvoriPolje(red, kolona + 1);
+            // Right
+            if (column + 1 < numColumns)
+              OpenField(row, column + 1);
 
-            // Dole desno
-            if (red + 1 < brojRedova && kolona + 1 < brojKolona)
-              OtvoriPolje(red + 1, kolona + 1);
+            // Down right
+            if (row + 1 < numRows && column + 1 < numColumns)
+              OpenField(row + 1, column + 1);
 
-            // Dole
-            if (red + 1 < brojRedova)
-              OtvoriPolje(red + 1, kolona);
+            // Down
+            if (row + 1 < numRows)
+              OpenField(row + 1, column);
 
-            // Dole levo
-            if (red + 1 < brojRedova && kolona - 1 >= 0)
-              OtvoriPolje(red + 1, kolona - 1);
+            // Down left
+            if (row + 1 < numRows && column - 1 >= 0)
+              OpenField(row + 1, column - 1);
 
-            // Levo
-            if (kolona - 1 >= 0)
-              OtvoriPolje(red, kolona - 1);
+            // Left
+            if (column - 1 >= 0)
+              OpenField(row, column - 1);
           }
-          return StatusOtvorenoPolje.uRedu; // Sve je u redu
+          return StatusOpenField.Ok; // No error, everything's fine
         }
-        else { // Polje je vec otvoreno ili je zavrsena igra
-          if (otvorenoPolje[red, kolona])
-            return StatusOtvorenoPolje.greskaVecOtvoreno;
+        else { // Field has been already opened or game over
+          if (openedField[row, column])
+            return StatusOpenField.ErrorFieldOpen;
           else
-            return StatusOtvorenoPolje.greskaResenaPartija;
+            return StatusOpenField.ErrorGameSolved;
         }
       }
     }
 
-    // Izvrsavanje programa
+    // Program execution
     static void Main(string[] args) {
 
-      // Korisnicki interfejs
-      int brojRedova, brojKolona, brojMina, red, kolona;
+      // User interface
+      int numRows, numColumns, numMines, row, column;
       Console.WriteLine("*** Mine ***");
 
-      // Ponavljanje novih partija igre sve dok korisnik to zeli
+      // Repeating new games until user wants it
       while (true) {
 
-        // Unos podataka za kreiranje igre
-        // i zastita od unosa nedozvoljenih vrednosti
+        // Data entry for game creation and wrong entry protection
         while (true) {
           try {
-            Console.WriteLine("Kreiranje igre");
+            Console.WriteLine("Creating new game");
             do {
-              Console.Write("Unesite broj redova [1-{0}]: ", MAX_REDOVA);
-              brojRedova = Convert.ToInt16(Console.ReadLine());
-            } while (brojRedova < 1 || brojRedova > MAX_REDOVA);
+              Console.Write("Enter number of rows [1-{0}]: ", MAX_ROWS);
+              numRows = Convert.ToInt16(Console.ReadLine());
+            } while (numRows < 1 || numRows > MAX_ROWS);
             do {
-              Console.Write("Unesite broj kolona[1-{0}]: ", MAX_KOLONA);
-              brojKolona = Convert.ToInt16(Console.ReadLine());
-            } while (brojKolona < 1 || brojKolona > MAX_KOLONA);
+              Console.Write("Enter number of columns [1-{0}]: ", MAX_COLUMNS);
+              numColumns = Convert.ToInt16(Console.ReadLine());
+            } while (numColumns < 1 || numColumns > MAX_COLUMNS);
             do {
-              Console.Write("Unesite broj mina[0-{0}]: ", brojRedova * brojKolona);
-              brojMina = Convert.ToInt16(Console.ReadLine());
-            } while (brojMina < 0 || brojMina > brojRedova * brojKolona);
+              Console.Write("Enter number of mines [0-{0}]: ", numRows * numColumns);
+              numMines = Convert.ToInt16(Console.ReadLine());
+            } while (numMines < 0 || numMines > numRows * numColumns);
             break;
           }
           catch (Exception e) {
-            Console.WriteLine("Greska pri unosu! Pokusajte ponovo.");
+            Console.WriteLine("Error, wrong entry! Please try again.");
             continue;
           }
         }
 
         /* Debug
-          Console.WriteLine("Broj redova: "+brojRedova);
-          Console.WriteLine("Broj kolona: "+brojKolona);
-          Console.WriteLine("Broj mina: "+brojMina);
+          Console.WriteLine("Number of rows: " + numRows);
+          Console.WriteLine("Number of columns: " + numColumns);
+          Console.WriteLine("Nummber of mines: " + numMines);
         */
 
-        // Kreiranje igre
-        MinskoPolje matricaMina = new MinskoPolje(brojRedova, brojKolona, brojMina);
+        // Create game
+        MineBoard matrixMines = new MineBoard(numRows, numColumns, numMines);
 
-        // Unosenje koordinata za otvaranje polja objekta matricaMina
-        // i zastita od unosa nedozvoljenih vrednosti
+        // Game solving loop
         while (true) {
 
-          // Ako partija nije zavrsena, prikaz minskog polja
-          if (matricaMina.Status == StatusIgre.nijeReseno) {
+          // If game is not over, show fields
+          if (matrixMines.Status == StatusGame.NotSolved) {
 
-            // Unos koordinata za otvaranje polja
-            // i zastita od unosa nedozvoljenih vrednosti
+            // Enter coordinates to open field and wrong entry protection
             while (true) {
               try {
-                Console.WriteLine("Otvaranje Polja");
+                Console.WriteLine("Open field");
                 do {
-                  Console.Write("Unesite red[1-{0}]: ", matricaMina.BrojRedova);
-                  red = Convert.ToInt16(Console.ReadLine()) - 1;
-                } while (red < 0 || red >= matricaMina.BrojRedova);
+                  Console.Write("Enter row number [1-{0}]: ", matrixMines.NumRows);
+                  row = Convert.ToInt16(Console.ReadLine()) - 1;
+                } while (row < 0 || row >= matrixMines.NumRows);
                 do {
-                  Console.Write("Unesite kolonu[1-{0}]: ", matricaMina.BrojKolona);
-                  kolona = Convert.ToInt16(Console.ReadLine()) - 1;
-                } while (kolona < 0 || kolona >= matricaMina.BrojKolona);
+                  Console.Write("Enter column number [1-{0}]: ", matrixMines.NumColumns);
+                  column = Convert.ToInt16(Console.ReadLine()) - 1;
+                } while (column < 0 || column >= matrixMines.NumColumns);
                 break;
               }
               catch (Exception e) {
-                Console.WriteLine("Greska pri unosu! Pokusajte ponovo.");
+                Console.WriteLine("Error, wrong entry! Please try again.");
                 continue;
               }
             }
 
-            // Otvaranje polja
-            StatusOtvorenoPolje statusOtvorenoPolje = matricaMina.OtvoriPolje(red, kolona);
+            // Open field
+            StatusOpenField statusOpenField = matrixMines.OpenField(row, column);
 
-            // Prikaz minskog polja
-            for (int i = 0; i < matricaMina.BrojRedova; i++) {
-              for (int j = 0; j < matricaMina.BrojKolona; j++) {
-                Polje polje = matricaMina.PrikaziPolje(i, j);
+            // Show all fields
+            for (int i = 0; i < matrixMines.NumRows; ++i) {
+              for (int j = 0; j < matrixMines.NumColumns; ++j) {
+                Field field = matrixMines.ShowField(i, j);
 
-                // Prikaz otvorenog polja gde nije postavljena mina
-                if ((int)polje >= 0 && (int)polje <= 8) {
-                  Console.ForegroundColor = (int)polje == 8 ? ConsoleColor.White : (ConsoleColor)((int)polje + 8);
-                  Console.Write((int)polje + " ");
+                // Show field which is opened and there is no mine
+                if ((int)field >= 0 && (int)field <= 8) {
+                  Console.ForegroundColor = (int)field == 8 ? ConsoleColor.White : (ConsoleColor)((int)field + 8);
+                  Console.Write((int)field + " ");
                   Console.ForegroundColor = ConsoleColor.Gray;
-
-                  // Prikaz otvorenog polja gde je postavljena mina
                 }
-                else if (polje == Polje.mina) {
-                  if (matricaMina.Status == StatusIgre.pobeda)
+                // Show field which is opened and has mine inside
+                else if (field == Field.Mine) {
+                  if (matrixMines.Status == StatusGame.Win)
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                  else if (matricaMina.Status == StatusIgre.poraz)
+                  else if (matrixMines.Status == StatusGame.Lose)
                     Console.ForegroundColor = ConsoleColor.DarkRed;
                   Console.Write("* ");
                   Console.ForegroundColor = ConsoleColor.Gray;
-
-                  // Prikaz polja koje nije otvoreno
                 }
-                else if (polje == Polje.nijeOtvoreno) {
+                // Show field which is not open yet
+                else if (field == Field.NotOpen) {
                   Console.Write("? ");
                 }
               }
 
-              // Novi red nakon prikaza kompletnog minskog polja
               Console.WriteLine();
             }
 
-            // Ukoliko se otvara vec otvoreno polje, izbaciti gresku
-            // i poslati na ponovni unos koordinata za otvaranje polja
-            if (statusOtvorenoPolje == StatusOtvorenoPolje.greskaVecOtvoreno) {
-              Console.WriteLine("Greska. Polje sa koordinatama ({0}, {1}) je vec otvoreno!", red + 1, kolona + 1);
+            // If tried to open already opened field, show error and sent to input 
+            // coordinates for opening other field
+            if (statusOpenField == StatusOpenField.ErrorFieldOpen) {
+              Console.WriteLine("Error, field with coordinates ({0}, {1}) has been already open!", row + 1, column + 1);
               continue;
             }
 
-            Console.WriteLine("Izlaz <Ctrl+C>");
+            Console.WriteLine("Exit <Ctrl+C>");
 
           }
-          else { // Ako je partija zavrsena, ispis poruke na ekran
-            if (matricaMina.Status == StatusIgre.pobeda)
-              Console.WriteLine("Cestitamo, pobedili ste.");
+          else { // If game over, write it on screen
+            if (matrixMines.Status == StatusGame.Win)
+              Console.WriteLine("Congratulations, you win.");
             else
-              Console.WriteLine("Nazalost, izgubili ste.");
+              Console.WriteLine("Sorry, you lose.");
 
-            // Mogucnost izlaza iz igre ili odabir nove partije
-            Console.Write("Zelite li nastaviti [d/n]: ");
-            ConsoleKeyInfo odgovor = Console.ReadKey();
+            // New game or quit the game
+            Console.Write("Do you want to continue [y/n]: ");
+            ConsoleKeyInfo answer = Console.ReadKey();
             Console.WriteLine();
-            if (odgovor.KeyChar == 'n' || odgovor.KeyChar == 'N')
-              return; // Izlaz iz programa
-            break; // Kreiranje nove igre
+            if (answer.KeyChar == 'n' || answer.KeyChar == 'N')
+              return; // Program exit
+            break; // New game
           }
         }
       }
